@@ -5,13 +5,14 @@ import plotly.express as px
 import traceback
 
 # --- 1. Database Connection Setup ---
-# Securely load credentials from Streamlit's secrets management
+# WARNING: Hardcoding credentials is a security risk.
+# This is for debugging purposes only. Use st.secrets for production.
 try:
-    DB_HOST = st.secrets["database"]["host"]
-    DB_PORT = st.secrets["database"]["port"]
-    DB_NAME = st.secrets["database"]["dbname"]
-    DB_USER = st.secrets["database"]["user"]
-    DB_PASS = st.secrets["database"]["password"]
+    DB_HOST = "pooler.aws-0-ap-southeast-1.pooler.supabase.com"
+    DB_PORT = "6543"
+    DB_NAME = "postgres"
+    DB_USER = "postgres.jawmtbpytrqtctflskny"
+    DB_PASS = "DataBase_2025" # <-- IMPORTANT: REPLACE THIS
 
     # This connection string now includes the port from your secrets
     conn_str = f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
