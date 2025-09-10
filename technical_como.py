@@ -8,11 +8,12 @@ import traceback
 # Securely load credentials from Streamlit's secrets management
 try:
     DB_HOST = st.secrets["database"]["host"]
+    DB_PORT = st.secrets["database"]["port"]
     DB_NAME = st.secrets["database"]["dbname"]
     DB_USER = st.secrets["database"]["user"]
     DB_PASS = st.secrets["database"]["password"]
 
-    conn_str = f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}"
+    conn_str = f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     engine = create_engine(conn_str)
 except Exception as e:
     st.error(f"Error creating database engine. Please check your secrets configuration. Details: {e}")
@@ -153,3 +154,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
