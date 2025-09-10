@@ -70,7 +70,7 @@ def load_master_data():
 # --- 3. Main Application ---
 def main():
     st.set_page_config(layout="wide")
-    st.title(" layered Equipment Vibration Dashboard")
+    st.title(" Technical Condition Monitoting Dashboard")
     st.markdown("Use the filters below to drill down from an equipment to a specific measurement point.")
 
     df = load_master_data()
@@ -154,4 +154,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
