@@ -13,6 +13,7 @@ try:
     DB_USER = st.secrets["database"]["user"]
     DB_PASS = st.secrets["database"]["password"]
 
+    # This connection string now includes the port from your secrets
     conn_str = f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     engine = create_engine(conn_str)
 except Exception as e:
@@ -70,7 +71,7 @@ def load_master_data():
 # --- 3. Main Application ---
 def main():
     st.set_page_config(layout="wide")
-    st.title(" Technical Condition Monitoring Dashboard")
+    st.title("Technical Condition Monitoring Dashboard")
     st.markdown("Use the filters below to drill down from an equipment to a specific measurement point.")
 
     df = load_master_data()
@@ -154,6 +155,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
 
