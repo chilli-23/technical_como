@@ -88,22 +88,16 @@ if page == "Monitoring Dashboard":
         
         st.header(f"Results for: {equipment_choice} → {component_choice}")
         
-        # --- THE FIX: PART 1 ---
-        # 1. Define a list of bright, "neon" colors.
-        bright_color_palette = [
-            "#00FFFF",  # Cyan/Aqua
-            "#7FFF00",  # Chartreuse
-            "#FF00FF",  # Magenta/Fuchsia
-            "#FFD700",  # Gold
-            "#FF4500",  # OrangeRed
-            "#1E90FF",  # DodgerBlue
-            "#ADFF2F",  # GreenYellow
-            "#FF69B4"   # HotPink
+        # --- THE CHANGE ---
+        # 1. Define a list of standard, professional colors.
+        professional_color_palette = [
+            '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
+            '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
         ]
         
         # 2. Create a specific color map for the selected points.
         unique_points = sorted(filtered_df['point_measurement'].unique())
-        color_map = {point: bright_color_palette[i % len(bright_color_palette)] for i, point in enumerate(unique_points)}
+        color_map = {point: professional_color_palette[i % len(professional_color_palette)] for i, point in enumerate(unique_points)}
 
         # Trend Graph
         plot_df = filtered_df.sort_values(by="date")
