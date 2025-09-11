@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 from sqlalchemy import create_engine, text
 import traceback
+import openpyxl # Added for reading .xlsx files
 
 # --- Page Configuration ---
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
@@ -94,6 +95,31 @@ if page == "Monitoring Dashboard":
             title="Selected Measurement Points Trend"
         )
         fig.update_layout(legend_title="Measurement Point", hovermode="x unified")
+        
+        # --- NEW FEATURE: Add annotations for notes ---
+        # Filter for points that have a non-empty note
+        notes_df = plot_df.dropna(subset=['note'])
+        
+        # Add a vertical line and annotation for each note found
+        for index, row in notes_df.iterrows():
+            # Add a vertical dotted line that spans the full height of the plot
+            fig.add_shape(
+                type="line",
+                x0=row['date'], y0=0, x1=row['date'], y1=1,
+                yref='paper', # Use 'paper' to reference the full plot area
+                line=dict(color="grey", width=1, dash="dot")
+            )
+            # Add the note text as an annotation at the top of the line
+            fig.add_annotation(
+                x=row['date'],
+                y=1.05, # Position the text slightly above the plot area
+                yref='paper',
+                text=row['note'],
+                showarrow=False,
+                font=dict(size=10, color="grey"),
+                xanchor="center"
+            )
+        
         st.plotly_chart(fig, use_container_width=True)
 
         # Alarm Standards Table
@@ -133,20 +159,29 @@ if page == "Monitoring Dashboard":
 # --- ==================================================================== ---
 elif page == "Upload New Data":
     st.title("⬆️ Upload New Data")
-    st.write("Use this page to add new records to the database tables from a CSV file.")
+    st.write("Use this page to add new records to the database tables from a CSV or XLSX file.")
     
     # --- Uploader UI ---
     table_options = ["data", "alarm_standards", "equipment", "alarm"]
     target_table = st.selectbox("1. Select table to add data to", options=table_options)
 
-    uploaded_file = st.file_uploader("2. Choose a CSV file", type="csv")
+    # Allow both csv and xlsx file types
+    uploaded_file = st.file_uploader("2. Choose a file", type=["csv", "xlsx"])
 
     if st.button("3. Upload and Add Data"):
         if uploaded_file is not None and target_table is not None:
             try:
-                csv_df = pd.read_csv(uploaded_file)
+                # Read the file based on its extension
+                if uploaded_file.name.endswith('.csv'):
+                    upload_df = pd.read_csv(uploaded_file)
+                elif uploaded_file.name.endswith('.xlsx'):
+                    upload_df = pd.read_excel(uploaded_file, engine='openpyxl')
+                else:
+                    st.error("Unsupported file type. Please upload a CSV or XLSX file.")
+                    st.stop()
+
                 st.write("Preview of uploaded data:")
-                st.dataframe(csv_df.head())
+                st.dataframe(upload_df.head())
 
                 # --- Safety Check: Validate Columns ---
                 st.info(f"Checking columns for the '{target_table}' table...")
@@ -154,20 +189,20 @@ elif page == "Upload New Data":
                     db_cols_query = text(f"SELECT * FROM {target_table} LIMIT 0")
                     db_cols = pd.read_sql(db_cols_query, connection).columns.tolist()
                 
-                csv_cols = csv_df.columns.tolist()
+                upload_cols = upload_df.columns.tolist()
 
-                if set(csv_cols) != set(db_cols):
-                    st.error(f"Column Mismatch! The CSV columns do not match the '{target_table}' table.")
+                if set(upload_cols) != set(db_cols):
+                    st.error(f"Column Mismatch! The file columns do not match the '{target_table}' table.")
                     st.write("**Expected Columns:**", sorted(db_cols))
-                    st.write("**Your CSV Columns:**", sorted(csv_cols))
+                    st.write("**Your File's Columns:**", sorted(upload_cols))
                     st.stop()
 
                 # --- Append data to the database ---
-                st.info(f"Columns match. Appending {len(csv_df)} rows to '{target_table}'...")
+                st.info(f"Columns match. Appending {len(upload_df)} rows to '{target_table}'...")
                 with engine.connect() as connection:
-                    csv_df.to_sql(target_table, con=connection, if_exists='append', index=False)
+                    upload_df.to_sql(target_table, con=connection, if_exists='append', index=False)
                 
-                st.success(f"✅ Successfully added {len(csv_df)} rows to the '{target_table}' table!")
+                st.success(f"✅ Successfully added {len(upload_df)} rows to the '{target_table}' table!")
                 st.info("Clearing data cache... The dashboard will show the new data on its next load.")
                 st.cache_data.clear()
 
@@ -175,4 +210,5 @@ elif page == "Upload New Data":
                 st.error("An error occurred during the upload process:")
                 st.code(traceback.format_exc())
         else:
-            st.warning("⚠️ Please select a table and upload a CSV file first.")
+            st.warning("⚠️ Please select a table and upload a file first.")
+
