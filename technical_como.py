@@ -97,24 +97,28 @@ if page == "Monitoring Dashboard":
         fig.update_layout(legend_title="Measurement Point", hovermode="x unified")
         
         # --- Add annotations for notes ---
-        color_map = {trace.name: trace.line.color for trace in fig.data}
+        # Create a more robust map of point names to their assigned colors
+        color_map = {str(trace.name).strip(): trace.line.color for trace in fig.data}
 
+        # Filter for points that have a meaningful note
         notes_df = plot_df.dropna(subset=['note'])
         notes_df = notes_df[~notes_df['note'].astype(str).str.strip().isin(['', '-'])]
         
         for index, row in notes_df.iterrows():
-            point_name = row['point_measurement']
+            point_name = str(row['point_measurement']).strip()
             line_color = color_map.get(point_name)
             
             # Default fallback colors
-            solid_color = 'rgb(128, 128, 128)'
-            transparent_color = 'rgba(128, 128, 128, 0.5)' 
+            solid_color = 'rgb(200, 200, 200)' # Light grey for visibility on dark backgrounds
+            transparent_color = 'rgba(200, 200, 200, 0.5)' 
             
             if line_color:
+                # Handle hex colors (e.g., '#1f77b4') by converting to rgba
                 if line_color.startswith('#'):
                     r, g, b = tuple(int(line_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
                     solid_color = f'rgb({r}, {g}, {b})'
                     transparent_color = f'rgba({r}, {g}, {b}, 0.5)'
+                # Handle existing rgb colors
                 elif line_color.startswith('rgb'):
                     solid_color = line_color
                     transparent_color = line_color.replace('rgb', 'rgba').replace(')', ', 0.5)')
@@ -126,16 +130,16 @@ if page == "Monitoring Dashboard":
                 yref='paper',
                 line=dict(color=transparent_color, width=1, dash="dot")
             )
-            # Add the note text as an annotation with the solid line color and legend
+            # Add the note text as an annotation with the solid line color and new legend format
             fig.add_annotation(
                 x=row['date'],
                 y=1.05,
                 yref='paper',
-                text=f"<b>{row['point_measurement']}:</b><br>{row['note']}",
+                text=f"{row['note']}<br><b>({row['point_measurement']})</b>",
                 showarrow=False,
                 font=dict(size=10, color=solid_color),
                 xanchor="center",
-                align="left"
+                align="center"
             )
         
         st.plotly_chart(fig, use_container_width=True)
@@ -183,11 +187,13 @@ elif page == "Upload New Data":
     table_options = ["data", "alarm_standards", "equipment", "alarm"]
     target_table = st.selectbox("1. Select table to add data to", options=table_options)
 
+    # Allow both csv and xlsx file types
     uploaded_file = st.file_uploader("2. Choose a file", type=["csv", "xlsx"])
 
     if st.button("3. Upload and Add Data"):
         if uploaded_file is not None and target_table is not None:
             try:
+                # Read the file based on its extension
                 if uploaded_file.name.endswith('.csv'):
                     upload_df = pd.read_csv(uploaded_file)
                 elif uploaded_file.name.endswith('.xlsx'):
