@@ -61,10 +61,9 @@ if df.empty:
 
 # --- Main Dashboard ---
 st.title("📊 Technical Condition Monitoring Dashboard")
-st.caption("Filter from Equipment → Component → Point Measurement to display the trend graph.")
+st.caption("Filter from Equipment → Component → Point Measurement to display the trend graph and historical data.")
 
 # --- Horizontal Filters ---
-# Restored the three-column layout for filters
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -73,7 +72,6 @@ with col1:
         options=sorted(df["equipment_name"].dropna().unique())
     )
 
-# Filter dataframe based on equipment selection
 filtered_by_eq = df[df["equipment_name"] == equipment_choice]
 
 with col2:
@@ -82,23 +80,24 @@ with col2:
         options=sorted(filtered_by_eq["component"].dropna().unique())
     )
 
-# This dataframe contains all data for the selected component
 component_df = filtered_by_eq[filtered_by_eq["component"] == component_choice]
 
 with col3:
     point_choices = st.multiselect(
-        "Measurement Point(s) to Plot",
+        "Measurement Point(s)",
         options=sorted(component_df["point_measurement"].dropna().unique())
     )
 
-# --- Trend Graph Section ---
-# Only show the graph if one or more points are selected
+# --- Display Area: Graph and Table ---
+# Both the graph and the table will now only appear if one or more points are selected
 if point_choices:
+    # --- Create the filtered dataframe for both the plot and the table ---
+    filtered_df = component_df[component_df["point_measurement"].isin(point_choices)].copy()
+    
+    # --- Trend Graph Section ---
     st.subheader(f"Trend for: {equipment_choice} → {component_choice}")
     
-    # Filter for the plot based on the multiselect widget
-    plot_df = component_df[component_df["point_measurement"].isin(point_choices)].copy()
-    plot_df = plot_df.sort_values(by="date")
+    plot_df = filtered_df.sort_values(by="date") # Sort for correct line plotting
 
     fig = px.line(
         plot_df,
@@ -110,38 +109,37 @@ if point_choices:
     )
     fig.update_layout(legend_title="Measurement Point", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
+    
+    # --- Historical Data Table Section ---
+    st.subheader("Historical Data for Selected Points")
+    
+    table_columns = ["point_measurement", "date", "value", "status", "note"]
+    
+    # *** THIS IS THE KEY CHANGE ***
+    # The historical_df now uses the 'filtered_df' which is based on your selection.
+    historical_df = filtered_df[table_columns]
+    
+    # Sort by date, with the most recent entries first
+    historical_df = historical_df.sort_values(by="date", ascending=False)
+
+    def color_status(val):
+        """Applies background color to cells based on the 'status' column."""
+        val_lower = str(val).lower()
+        if "excellent" in val_lower:
+            return "background-color: rgba(0, 128, 0, 0.7); color: white;"
+        elif "acceptable" in val_lower:
+            return "background-color: rgba(144, 238, 144, 0.7); color: black;"
+        elif "requires evaluation" in val_lower:
+            return "background-color: rgba(255, 255, 0, 0.7); color: black;"
+        elif "unacceptable" in val_lower:
+            return "background-color: rgba(255, 0, 0, 0.7); color: white;"
+        return ""
+
+    st.dataframe(
+        historical_df.style.applymap(color_status, subset=['status']),
+        use_container_width=True,
+        hide_index=True
+    )
 else:
-    # Instruct user if no points are selected
-    st.info("ℹ️ Select one or more measurement points to display the trend graph.")
-
-# --- Historical Data Table Section ---
-# This section is now always visible and shows data for the selected component
-st.subheader(f"Complete Historical Data for: {component_choice}")
-st.write("This table shows all records for the selected component, regardless of the plot filter.")
-
-# Define the exact columns you requested
-table_columns = ["point_measurement", "date", "value", "status", "note"]
-historical_df = component_df[table_columns].copy()
-
-# Sort by date, with the most recent entries first
-historical_df = historical_df.sort_values(by="date", ascending=False)
-
-def color_status(val):
-    """Applies background color to cells based on the 'status' column."""
-    val_lower = str(val).lower()
-    if "excellent" in val_lower:
-        return "background-color: rgba(0, 128, 0, 0.7); color: white;"
-    elif "acceptable" in val_lower:
-        return "background-color: rgba(144, 238, 144, 0.7); color: black;"
-    elif "requires evaluation" in val_lower:
-        return "background-color: rgba(255, 255, 0, 0.7); color: black;"
-    elif "unacceptable" in val_lower:
-        return "background-color: rgba(255, 0, 0, 0.7); color: white;"
-    return ""
-
-# Display the styled dataframe, hiding the pandas index
-st.dataframe(
-    historical_df.style.applymap(color_status, subset=['status']),
-    use_container_width=True,
-    hide_index=True
-)
+    # This message now correctly applies to both the graph and the table.
+    st.info("ℹ️ Select one or more measurement points to display the trend graph and historical data.")
