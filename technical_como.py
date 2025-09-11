@@ -32,7 +32,6 @@ def load_data():
     and converts the 'date' column.
     """
     try:
-        # --- CHANGE 1: Modified SQL Query to JOIN with the 'alarm' table ---
         query = """
             SELECT 
                 d.equipment_name,
@@ -87,7 +86,7 @@ with col3:
 if point_choices:
     filtered_df = component_df[component_df["point_measurement"].isin(point_choices)].copy()
     
-    # --- Trend Graph Section ---
+    # --- 1. Trend Graph Section ---
     st.subheader(f"Trend for: {equipment_choice} → {component_choice}")
     plot_df = filtered_df.sort_values(by="date")
     fig = px.line(
@@ -96,6 +95,23 @@ if point_choices:
     )
     fig.update_layout(legend_title="Measurement Point", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
+
+    # --- 2. Single, Consolidated Alarm Standards Table ---
+    # This is now outside and above the loop, as you requested.
+    st.subheader("Associated Alarm Standards for Selected Points")
+    alarm_cols = [
+        "point_measurement", # Added so you know which point each standard belongs to
+        "key", 
+        "technology", 
+        "alarm_standard", 
+        "excellent", 
+        "acceptable", 
+        "requires_evaluation", 
+        "unacceptable"
+    ]
+    # Use drop_duplicates() to show each unique alarm standard only once
+    alarm_df = filtered_df[alarm_cols].drop_duplicates()
+    st.dataframe(alarm_df, use_container_width=True, hide_index=True)
     
     def color_status(val):
         val_lower = str(val).lower()
@@ -105,32 +121,20 @@ if point_choices:
         elif "unacceptable" in val_lower: return "background-color: rgba(255, 0, 0, 0.7); color: white;"
         return ""
 
-    # --- Loop to Create a Section for Each Selected Point ---
-    st.header("Detailed Data for Selected Points")
+    # --- 3. Loop to Create Separate Historical Tables ---
+    st.header("Detailed Historical Data")
     for point in sorted(point_choices):
-        st.subheader(f"Data for: {point}")
+        st.subheader(f"History for: {point}")
         
         point_df = filtered_df[filtered_df['point_measurement'] == point]
         
-        # Table 1: Historical Data
-        st.markdown("##### Historical Readings")
         hist_cols = ["date", "value", "status", "note"]
         historical_df = point_df[hist_cols].sort_values(by="date", ascending=False)
+        
         st.dataframe(
             historical_df.style.applymap(color_status, subset=['status']),
             use_container_width=True, hide_index=True
         )
-
-        # --- CHANGE 2: Added a new section to display the Alarm Standards table ---
-        st.markdown("##### Associated Alarm Standards")
-        alarm_cols = [
-            "key", "technology", "alarm_standard", "excellent", 
-            "acceptable", "requires_evaluation", "unacceptable"
-        ]
-        # Use drop_duplicates() because the alarm info is the same for every row
-        alarm_df = point_df[alarm_cols].drop_duplicates()
-        st.dataframe(alarm_df, use_container_width=True, hide_index=True)
-        
         st.markdown("---") # Visual separator
 
 else:
