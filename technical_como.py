@@ -5,15 +5,22 @@ from sqlalchemy import create_engine
 import traceback
 
 # --- Page Configuration ---
-# Set the page to a wide layout. This should be the first Streamlit command.
 st.set_page_config(layout="wide")
 
-# --- Database Connection ---
+# --- Database Connection (RESTORED TO YOUR ORIGINAL METHOD) ---
 try:
-    engine = create_engine(st.secrets["database_url"])
+    DB_HOST = st.secrets["database"]["host"]
+    DB_PORT = st.secrets["database"]["port"]
+    DB_NAME = st.secrets["database"]["dbname"]
+    DB_USER = st.secrets["database"]["user"]
+    DB_PASS = st.secrets["database"]["password"]
+
+    engine = create_engine(
+        f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    )
     connection = engine.connect()
 except Exception as e:
-    st.error("❌ Database connection failed. Please check your credentials.")
+    st.error("❌ Database connection failed. Please check your credentials in secrets.toml.")
     st.code(traceback.format_exc())
     st.stop()
 
@@ -22,6 +29,7 @@ except Exception as e:
 def load_data():
     """Loads data from the database and converts date column."""
     try:
+        # Simplified query to only get necessary columns
         query = """
             SELECT 
                 equipment_name,
@@ -91,7 +99,6 @@ with tab1:
     if not point_choices:
         st.info("ℹ️ Select one or more measurement points from the sidebar to plot the trend.")
     else:
-        # Filter for the plot based on user's multiselect choice
         plot_df = component_df[component_df["point_measurement"].isin(point_choices)].copy()
         plot_df = plot_df.sort_values(by="date")
 
@@ -110,22 +117,10 @@ with tab1:
 with tab2:
     st.subheader(f"Complete Historical Data for: {component_choice}")
 
-    # Define the columns you want to show in the table
-    table_columns = [
-        "point_measurement", 
-        "date", 
-        "value", 
-        "status", 
-        "note"
-    ]
-    
-    # Use the full component_df, not the plot_df
+    table_columns = ["point_measurement", "date", "value", "status", "note"]
     historical_df = component_df[table_columns].copy()
-    
-    # Sort by date, newest first
     historical_df = historical_df.sort_values(by="date", ascending=False)
     
-    # Function to apply color based on status
     def color_status(val):
         val_lower = str(val).lower()
         if "excellent" in val_lower:
@@ -138,7 +133,6 @@ with tab2:
             return "background-color: rgba(255, 0, 0, 0.7); color: white;"
         return ""
 
-    # Apply styling and display the dataframe
     st.dataframe(
         historical_df.style.applymap(color_status, subset=['status']),
         use_container_width=True,
