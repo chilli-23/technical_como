@@ -5,11 +5,9 @@ from sqlalchemy import create_engine
 import traceback
 
 # --- Page Configuration ---
-# Set to wide layout and should be the first Streamlit command
 st.set_page_config(layout="wide")
 
 # --- Database Connection ---
-# Using your original, reliable connection method
 try:
     DB_HOST = st.secrets["database"]["host"]
     DB_PORT = st.secrets["database"]["port"]
@@ -27,7 +25,7 @@ except Exception as e:
     st.stop()
 
 # --- Data Loading Function ---
-@st.cache_data(ttl=600) # Cache data for 10 minutes
+@st.cache_data(ttl=600)
 def load_data():
     """Loads data, converting the 'date' column and handling potential errors."""
     try:
@@ -44,7 +42,6 @@ def load_data():
             WHERE value IS NOT NULL
         """
         df = pd.read_sql(query, connection)
-        # Robustly convert date column
         df['date'] = pd.to_datetime(df['date'], errors='coerce')
         df.dropna(subset=['date'], inplace=True)
         return df
@@ -88,16 +85,13 @@ with col3:
         options=sorted(component_df["point_measurement"].dropna().unique())
     )
 
-# --- Display Area: Graph and Table ---
-# Both the graph and the table will now only appear if one or more points are selected
+# --- Display Area: Graph and Tables ---
 if point_choices:
-    # --- Create the filtered dataframe for both the plot and the table ---
     filtered_df = component_df[component_df["point_measurement"].isin(point_choices)].copy()
     
     # --- Trend Graph Section ---
     st.subheader(f"Trend for: {equipment_choice} → {component_choice}")
-    
-    plot_df = filtered_df.sort_values(by="date") # Sort for correct line plotting
+    plot_df = filtered_df.sort_values(by="date")
 
     fig = px.line(
         plot_df,
@@ -110,36 +104,44 @@ if point_choices:
     fig.update_layout(legend_title="Measurement Point", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
     
-    # --- Historical Data Table Section ---
-    st.subheader("Historical Data for Selected Points")
-    
-    table_columns = ["point_measurement", "date", "value", "status", "note"]
-    
-    # *** THIS IS THE KEY CHANGE ***
-    # The historical_df now uses the 'filtered_df' which is based on your selection.
-    historical_df = filtered_df[table_columns]
-    
-    # Sort by date, with the most recent entries first
-    historical_df = historical_df.sort_values(by="date", ascending=False)
-
+    # --- CHANGE 1: Function with Updated, Bolder Colors at 70% Visibility ---
     def color_status(val):
-        """Applies background color to cells based on the 'status' column."""
+        """Applies bolder background colors to cells based on the 'status' column."""
         val_lower = str(val).lower()
         if "excellent" in val_lower:
+            # Dark Green
             return "background-color: rgba(0, 128, 0, 0.7); color: white;"
         elif "acceptable" in val_lower:
-            return "background-color: rgba(144, 238, 144, 0.7); color: black;"
+            # Lime Green (less pastel)
+            return "background-color: rgba(50, 205, 50, 0.7); color: black;"
         elif "requires evaluation" in val_lower:
-            return "background-color: rgba(255, 255, 0, 0.7); color: black;"
+            # Orange (stronger warning color)
+            return "background-color: rgba(255, 165, 0, 0.7); color: black;"
         elif "unacceptable" in val_lower:
+            # Bright Red
             return "background-color: rgba(255, 0, 0, 0.7); color: white;"
         return ""
 
-    st.dataframe(
-        historical_df.style.applymap(color_status, subset=['status']),
-        use_container_width=True,
-        hide_index=True
-    )
+    # --- CHANGE 2: Loop to Create a Separate Table for Each Selected Point ---
+    st.header("Historical Data for Selected Points")
+    
+    # Sort the selected points alphabetically for consistent order
+    for point in sorted(point_choices):
+        st.subheader(f"History for: {point}")
+        
+        # Create a smaller dataframe for just the current point in the loop
+        point_df = filtered_df[filtered_df['point_measurement'] == point]
+        
+        table_columns = ["date", "value", "status", "note"]
+        historical_df = point_df[table_columns].sort_values(by="date", ascending=False)
+        
+        # Display the styled dataframe for this specific point
+        st.dataframe(
+            historical_df.style.applymap(color_status, subset=['status']),
+            use_container_width=True,
+            hide_index=True
+        )
+        st.markdown("---") # Add a visual separator between tables
+
 else:
-    # This message now correctly applies to both the graph and the table.
     st.info("ℹ️ Select one or more measurement points to display the trend graph and historical data.")
