@@ -28,10 +28,11 @@ except Exception as e:
 @st.cache_data(ttl=600)
 def load_data():
     """
-    Loads data by joining the 'data' and 'alarm' tables, 
-    and converts the 'date' column.
+    Loads data by joining the 'data' and 'alarm_standards' tables.
     """
     try:
+        # --- CHANGE 1: SQL Query now joins with 'alarm_standards' ---
+        # It connects data.alarm_standard to alarm_standards.standard
         query = """
             SELECT 
                 d.equipment_name,
@@ -41,15 +42,13 @@ def load_data():
                 d.value,
                 d.status,
                 d.note,
-                d.key,
-                d.technology,
-                a.alarm_standard,
-                a.excellent,
-                a.acceptable,
-                a.requires_evaluation,
-                a.unacceptable
+                d.alarm_standard,
+                stds.excellent,
+                stds.acceptable,
+                stds.requires_evaluation,
+                stds.unacceptable
             FROM data d
-            LEFT JOIN alarm a ON d.alarm_standard = a.alarm_standard AND d.key = a.key
+            LEFT JOIN alarm_standards stds ON d.alarm_standard = stds.standard
             WHERE d.value IS NOT NULL
         """
         df = pd.read_sql(query, connection)
@@ -97,19 +96,18 @@ if point_choices:
     st.plotly_chart(fig, use_container_width=True)
 
     # --- 2. Single, Consolidated Alarm Standards Table ---
-    # This is now outside and above the loop, as you requested.
     st.subheader("Associated Alarm Standards for Selected Points")
+    
+    # --- CHANGE 2: Updated the columns for the Alarm Standards table ---
+    # These columns now come from the 'alarm_standards' table via the JOIN.
     alarm_cols = [
-        "point_measurement", # Added so you know which point each standard belongs to
-        "key", 
-        "technology", 
+        "point_measurement",
         "alarm_standard", 
         "excellent", 
         "acceptable", 
         "requires_evaluation", 
         "unacceptable"
     ]
-    # Use drop_duplicates() to show each unique alarm standard only once
     alarm_df = filtered_df[alarm_cols].drop_duplicates()
     st.dataframe(alarm_df, use_container_width=True, hide_index=True)
     
@@ -135,7 +133,7 @@ if point_choices:
             historical_df.style.applymap(color_status, subset=['status']),
             use_container_width=True, hide_index=True
         )
-        st.markdown("---") # Visual separator
+        st.markdown("---")
 
 else:
     st.info("ℹ️ Select one or more measurement points to display the trend graph and historical data.")
