@@ -47,26 +47,34 @@ except Exception:
     st.stop()
 
 
-# --- 3. Filters ---
-equipments = df["equipment_name"].dropna().unique()
-equipment_choice = st.selectbox("Select Equipment", options=sorted(equipments))
+# --- 3. Filters (horizontal layout) ---
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    equipments = df["equipment_name"].dropna().unique()
+    equipment_choice = st.selectbox("Equipment", options=sorted(equipments))
 
 filtered_eq = df[df["equipment_name"] == equipment_choice]
 
-components = filtered_eq["component"].dropna().unique()
-component_choice = st.selectbox("Select Component", options=sorted(components))
+with col2:
+    components = filtered_eq["component"].dropna().unique()
+    component_choice = st.selectbox("Component", options=sorted(components))
 
 filtered_comp = filtered_eq[filtered_eq["component"] == component_choice]
 
-points = filtered_comp["point_measurement"].dropna().unique()
-point_choices = st.multiselect("Select Measurement Points", options=sorted(points))
+with col3:
+    points = filtered_comp["point_measurement"].dropna().unique()
+    point_choices = st.multiselect("Measurement Point(s)", options=sorted(points))
 
-# --- 4. Plot ---
+
+# --- 4. Plot only if points selected ---
 if point_choices:
     plot_df = filtered_comp[filtered_comp["point_measurement"].isin(point_choices)].copy()
 
     # add unit to legend labels
-    plot_df["point_with_unit"] = plot_df["point_measurement"] + " (" + plot_df["unit"].astype(str) + ")"
+    plot_df["point_with_unit"] = (
+        plot_df["point_measurement"] + " (" + plot_df["unit"].astype(str) + ")"
+    )
 
     fig = px.line(
         plot_df,
@@ -84,6 +92,5 @@ if point_choices:
     )
 
     st.plotly_chart(fig, use_container_width=True)
-
 else:
     st.info("👆 Please select one or more measurement points to see the trend.")
