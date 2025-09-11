@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from sqlalchemy import create_engine
-from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
+from st_aggrid import AgGrid, JsCode
 import traceback
 
 # --- 1. Database Connection Setup ---
@@ -18,7 +18,6 @@ try:
         pool_pre_ping=True,
     )
     connection = engine.connect()
-    st.success("✅ Connected to database!")
 
 except Exception:
     st.error("❌ Database connection failed!")
@@ -111,30 +110,37 @@ if point_choices:
         ]
     ].copy()
 
-    # Conditional cell coloring (status column)
+    # Conditional formatting for status
     status_color_js = JsCode("""
     function(params) {
         if (params.value == 'excellent') {
-            return {'color': 'white', 'backgroundColor': 'rgba(0,128,0,0.8)'};  // Dark green
+            return {'color': 'white', 'backgroundColor': 'rgba(0,128,0,0.8)'};
         } else if (params.value == 'acceptable') {
-            return {'color': 'black', 'backgroundColor': 'rgba(144,238,144,0.8)'};  // Light green
+            return {'color': 'black', 'backgroundColor': 'rgba(144,238,144,0.8)'};
         } else if (params.value == 'requires evaluation') {
-            return {'color': 'black', 'backgroundColor': 'rgba(255,255,0,0.8)'};  // Yellow
+            return {'color': 'black', 'backgroundColor': 'rgba(255,255,0,0.8)'};
         } else if (params.value == 'unacceptable') {
-            return {'color': 'white', 'backgroundColor': 'rgba(255,0,0,0.8)'};  // Red
+            return {'color': 'white', 'backgroundColor': 'rgba(255,0,0,0.8)'};
         }
         return null;
     }
     """)
 
-    gb = GridOptionsBuilder.from_dataframe(hist_df)
-    gb.configure_columns(hist_df.columns, wrapText=True, autoHeight=True)
-    gb.configure_column("status", cellStyle=status_color_js)
-    gb.configure_pagination(paginationAutoPageSize=True)
-    gb.configure_side_bar()
-    grid_options = gb.build()
-
-    AgGrid(hist_df, gridOptions=grid_options, height=300, theme="balham")
+    AgGrid(
+        hist_df,
+        height=300,
+        theme="balham",
+        enable_enterprise_modules=False,
+        fit_columns_on_grid_load=True,
+        custom_css={".ag-cell": {"line-height": "20px", "padding": "4px"}},
+        columns_auto_size_mode="FIT_CONTENTS",
+        key="hist_table",
+        update_mode="NO_UPDATE",
+        allow_unsafe_jscode=True,
+        gridOptions={
+            "getRowStyle": status_color_js,
+        },
+    )
 
     # --- 6. Alarm Info Table (AgGrid) ---
     st.subheader("🚨 Alarm Settings")
@@ -150,12 +156,14 @@ if point_choices:
     """
     try:
         alarm_df = pd.read_sql(query_alarm, connection)
-        gb2 = GridOptionsBuilder.from_dataframe(alarm_df)
-        gb2.configure_pagination(paginationAutoPageSize=True)
-        gb2.configure_side_bar()
-        grid_options2 = gb2.build()
-
-        AgGrid(alarm_df, gridOptions=grid_options2, height=250, theme="balham")
+        AgGrid(
+            alarm_df,
+            height=250,
+            theme="balham",
+            enable_enterprise_modules=False,
+            fit_columns_on_grid_load=True,
+            key="alarm_table",
+        )
     except Exception:
         st.warning("⚠️ No alarm info available for the selected points.")
 
