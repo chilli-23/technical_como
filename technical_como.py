@@ -2,158 +2,145 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from sqlalchemy import create_engine
-from st_aggrid import AgGrid, GridOptionsBuilder
 import traceback
 
+# --- Page Configuration ---
+# Set the page to a wide layout. This should be the first Streamlit command.
 st.set_page_config(layout="wide")
-# --- 1. Database Connection Setup ---
-try:
-    DB_HOST = st.secrets["database"]["host"]
-    DB_PORT = st.secrets["database"]["port"]
-    DB_NAME = st.secrets["database"]["dbname"]
-    DB_USER = st.secrets["database"]["user"]
-    DB_PASS = st.secrets["database"]["password"]
 
-    engine = create_engine(
-        f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
-        pool_pre_ping=True,
-    )
+# --- Database Connection ---
+try:
+    engine = create_engine(st.secrets["database_url"])
     connection = engine.connect()
-
-except Exception:
-    st.error("❌ Database connection failed!")
+except Exception as e:
+    st.error("❌ Database connection failed. Please check your credentials.")
     st.code(traceback.format_exc())
     st.stop()
 
-
-# --- 2. Load Data ---
-@st.cache_data
+# --- Data Loading Function ---
+@st.cache_data(ttl=600) # Cache data for 10 minutes
 def load_data():
-    # --- CHANGE 1: Added 'note' to the SQL query ---
-    # The 'note' column is now fetched from the database.
-    query = """
-        SELECT 
-            equipment_tag_id,
-            equipment_name,
-            technology,
-            component,
-            key,
-            alarm_standard,
-            date,
-            point_measurement,
-            value,
-            unit,
-            status,
-            note 
-        FROM data
-        WHERE value IS NOT NULL
-        ORDER BY date;
-    """
-    return pd.read_sql(query, connection)
+    """Loads data from the database and converts date column."""
+    try:
+        query = """
+            SELECT 
+                equipment_name,
+                component,
+                point_measurement,
+                date,
+                value,
+                status,
+                note
+            FROM data
+            WHERE value IS NOT NULL
+        """
+        df = pd.read_sql(query, connection)
+        
+        # Convert 'date' column, coercing errors to NaT (Not a Time)
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        
+        # Drop rows where date conversion failed
+        df.dropna(subset=['date'], inplace=True)
+        
+        return df
+    except Exception as e:
+        st.error("❌ Failed to load data from the database.")
+        st.code(traceback.format_exc())
+        return pd.DataFrame() # Return empty dataframe on error
 
-try:
-    df = load_data()
-    # Best practice: Ensure the date column is in datetime format for accurate plotting
-    df['date'] = pd.to_datetime(df['date'])
-    
-except Exception:
-    st.error("❌ Could not load data.")
-    st.code(traceback.format_exc())
+# Load the data
+df = load_data()
+
+if df.empty:
+    st.warning("⚠️ No data available to display.")
     st.stop()
 
-st.subheader("📊 Technical Condition Monitoring Dashboard")
-st.caption("Filter from Equipment → Component → Point Measurement")
+# --- Main Dashboard ---
+st.title("📊 Technical Condition Monitoring Dashboard")
+st.caption("Filter by Equipment, then Component, then select points to plot in the Trend Analysis tab.")
 
-# --- 3. Filters (horizontal layout) ---
-col1, col2, col3 = st.columns(3)
+# --- Sidebar Filters ---
+st.sidebar.header("Filters")
+equipment_choice = st.sidebar.selectbox(
+    "1. Select Equipment",
+    options=sorted(df["equipment_name"].dropna().unique())
+)
 
-with col1:
-    equipments = df["equipment_name"].dropna().unique()
-    equipment_choice = st.selectbox("Equipment", options=sorted(equipments))
+filtered_by_eq = df[df["equipment_name"] == equipment_choice]
 
-filtered_eq = df[df["equipment_name"] == equipment_choice]
+component_choice = st.sidebar.selectbox(
+    "2. Select Component",
+    options=sorted(filtered_by_eq["component"].dropna().unique())
+)
 
-with col2:
-    components = filtered_eq["component"].dropna().unique()
-    component_choice = st.selectbox("Component", options=sorted(components))
+# This is the main dataframe for the selected component
+component_df = filtered_by_eq[filtered_by_eq["component"] == component_choice]
 
-filtered_comp = filtered_eq[filtered_eq["component"] == component_choice]
+point_choices = st.sidebar.multiselect(
+    "3. Select Measurement Point(s) to Plot",
+    options=sorted(component_df["point_measurement"].dropna().unique())
+)
 
-with col3:
-    points = filtered_comp["point_measurement"].dropna().unique()
-    point_choices = st.multiselect("Measurement Point(s)", options=sorted(points))
+# --- Tabbed Layout for Graph and Table ---
+tab1, tab2 = st.tabs(["Trend Analysis 📈", "Historical Data 📋"])
 
-
-# --- 4. Plot only if points selected ---
-if point_choices:
-    plot_df = filtered_comp[filtered_comp["point_measurement"].isin(point_choices)].copy()
-
-    # add unit to legend labels for clarity
-    plot_df["point_with_unit"] = (
-        plot_df["point_measurement"] + " (" + plot_df["unit"].astype(str) + ")"
-    )
-
-    fig = px.line(
-        plot_df,
-        x="date",
-        y="value",
-        color="point_with_unit",
-        markers=True,
-        title=f"Trend for {equipment_choice} - {component_choice}",
-    )
-    fig.update_layout(
-        xaxis_title="Date",
-        yaxis_title="Value",
-        legend_title="Measurement Point",
-        hovermode="x unified",
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    # --- 5. Table of selected measurements ---
-    st.markdown("### 📋 Historical Data")
+## --- Tab 1: Trend Analysis Graph ---
+with tab1:
+    st.subheader(f"Trend for: {equipment_choice} → {component_choice}")
     
-    # --- CHANGE 2: Updated the list of columns for the table ---
-    # This list now exactly matches your request.
-    columns_for_table = [
+    if not point_choices:
+        st.info("ℹ️ Select one or more measurement points from the sidebar to plot the trend.")
+    else:
+        # Filter for the plot based on user's multiselect choice
+        plot_df = component_df[component_df["point_measurement"].isin(point_choices)].copy()
+        plot_df = plot_df.sort_values(by="date")
+
+        fig = px.line(
+            plot_df,
+            x="date",
+            y="value",
+            color="point_measurement",
+            markers=True,
+            title="Selected Measurement Points Trend"
+        )
+        fig.update_layout(legend_title="Measurement Point", hovermode="x unified")
+        st.plotly_chart(fig, use_container_width=True)
+
+## --- Tab 2: Historical Data Table ---
+with tab2:
+    st.subheader(f"Complete Historical Data for: {component_choice}")
+
+    # Define the columns you want to show in the table
+    table_columns = [
         "point_measurement", 
         "date", 
-        "value",  
-        "unit", 
+        "value", 
         "status", 
         "note"
     ]
-    table_df = plot_df[columns_for_table].copy()
     
-    # Format date for better readability in the table
-    table_df['date'] = table_df['date'].dt.strftime('%Y-%m-%d %H:%M:%S')
+    # Use the full component_df, not the plot_df
+    historical_df = component_df[table_columns].copy()
+    
+    # Sort by date, newest first
+    historical_df = historical_df.sort_values(by="date", ascending=False)
+    
+    # Function to apply color based on status
+    def color_status(val):
+        val_lower = str(val).lower()
+        if "excellent" in val_lower:
+            return "background-color: rgba(0, 128, 0, 0.7); color: white;"
+        elif "acceptable" in val_lower:
+            return "background-color: rgba(144, 238, 144, 0.7); color: black;"
+        elif "requires evaluation" in val_lower:
+            return "background-color: rgba(255, 255, 0, 0.7); color: black;"
+        elif "unacceptable" in val_lower:
+            return "background-color: rgba(255, 0, 0, 0.7); color: white;"
+        return ""
 
-
-    # Set up AgGrid with conditional formatting
-    gb = GridOptionsBuilder.from_dataframe(table_df)
-    gb.configure_pagination(enabled=True, paginationAutoPageSize=True)
-    gb.configure_default_column(resizable=True, filter=True, sortable=True)
-
-    # Custom JS code for cell style based on 'status' value
-    cell_style_jscode = """
-    function(params) {
-        if (params.value === 'Excellent' || params.value === 'excellent') {
-            return { 'backgroundColor': 'rgba(0,128,0,0.7)', 'color': 'white' };
-        } else if (params.value === 'Acceptable' || params.value === 'acceptable') {
-            return { 'backgroundColor': 'rgba(144,238,144,0.7)', 'color': 'black' };
-        } else if (params.value === 'Requires Evaluation' || params.value === 'requires evaluation') {
-            return { 'backgroundColor': 'rgba(255,255,0,0.7)', 'color': 'black' };
-        } else if (params.value === 'Unacceptable' || params.value === 'unacceptable') {
-            return { 'backgroundColor': 'rgba(255,0,0,0.7)', 'color': 'white' };
-        }
-    }
-    """
-    gb.configure_column("status", cellStyle=cell_style_jscode)
-
-    grid_options = gb.build()
-
-    AgGrid(table_df, gridOptions=grid_options, fit_columns_on_grid_load=True, theme='streamlit')
-
-else:
-    st.info("👆 Please select one or more measurement points to see the trend.")
-
+    # Apply styling and display the dataframe
+    st.dataframe(
+        historical_df.style.applymap(color_status, subset=['status']),
+        use_container_width=True,
+        hide_index=True
+    )
