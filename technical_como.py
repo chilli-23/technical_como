@@ -84,7 +84,6 @@ with col3:
 if point_choices:
     filtered_df = component_df[component_df["point_measurement"].isin(point_choices)].copy()
     
-    # --- 1. Trend Graph Section ---
     st.subheader(f"Trend for: {equipment_choice} → {component_choice}")
     plot_df = filtered_df.sort_values(by="date")
     fig = px.line(
@@ -94,17 +93,10 @@ if point_choices:
     fig.update_layout(legend_title="Measurement Point", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- 2. Single, Consolidated Alarm Standards Table ---
     st.subheader("Associated Alarm Standards for Selected Points")
-    
     alarm_cols = [
-        "point_measurement",
-        "alarm_standard", 
-        "excellent", 
-        "acceptable", 
-        "requires_evaluation", 
-        "unacceptable",
-        "unit"
+        "point_measurement", "alarm_standard", "excellent", "acceptable", 
+        "requires_evaluation", "unacceptable", "unit"
     ]
     alarm_df = filtered_df[alarm_cols].drop_duplicates()
     st.dataframe(alarm_df, use_container_width=True, hide_index=True)
@@ -117,22 +109,19 @@ if point_choices:
         elif "unacceptable" in val_lower: return "background-color: rgba(255, 0, 0, 0.7); color: white;"
         return ""
 
-    # --- 3. Loop to Create Separate Historical Tables ---
     st.header("Detailed Historical Data")
     for point in sorted(point_choices):
         st.subheader(f"History for: {point}")
-        
         point_df = filtered_df[filtered_df['point_measurement'] == point]
-        
         hist_cols = ["date", "value", "unit", "status", "note"]
         historical_df = point_df[hist_cols].sort_values(by="date", ascending=False)
-        
         historical_df['date'] = historical_df['date'].dt.strftime('%Y-%m-%d')
         
         # --- THIS IS THE CHANGE ---
-        # The .format() for the 'value' column has been removed.
+        # The .format() is back, but uses '{:g}' to remove trailing zeros.
         st.dataframe(
-            historical_df.style.applymap(color_status, subset=['status']),
+            historical_df.style.applymap(color_status, subset=['status'])
+                              .format({'value': '{:g}'}),
             use_container_width=True, 
             hide_index=True
         )
