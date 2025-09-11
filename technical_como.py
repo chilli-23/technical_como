@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 import plotly.express as px
 
 # --- Database Connection ---
@@ -15,7 +15,7 @@ try:
         f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     )
     conn = engine.connect()
-except Exception as e:
+except Exception:
     st.error("❌ Database connection failed. Please check credentials.")
     st.stop()
 
@@ -26,14 +26,14 @@ def load_data():
         SELECT 
             d.date,
             d.equipment_name,
-            d.component,
             d.point_measurement,
             d.value,
             d.key,
             d.status,
             d.note,
             d.equipment_tag_id,
-            tc.technology,
+            d.technology,
+            tc.component,
             tc.unit,
             a.alarm_standard,
             a.parameter,
@@ -44,7 +44,7 @@ def load_data():
             a.al_set,
             a.load_kw
         FROM data d
-        LEFT JOIN component tc ON d.component = tc.component
+        LEFT JOIN component tc ON d.point_measurement = tc.point
         LEFT JOIN alarm a ON d.alarm_standard = a.alarm_standard
         WHERE d.value IS NOT NULL;
     """
@@ -93,7 +93,7 @@ if not plot_df.empty:
     expected_cols = [
         "point_measurement",
         "component",
-        "technology",
+        "technology",   # <-- now from data
         "key",
         "date",
         "value",
@@ -117,9 +117,7 @@ if not plot_df.empty:
             return "background-color: rgba(255, 0, 0, 0.8); color: white;"  # red
         return ""
 
-    st.dataframe(
-        hist_df.style.applymap(color_status, subset=["status"])
-    )
+    st.dataframe(hist_df.style.applymap(color_status, subset=["status"]))
 
     # --- Alarm Data Table ---
     st.subheader("📊 Alarm Data")
