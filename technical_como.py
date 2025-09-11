@@ -97,28 +97,39 @@ if page == "Monitoring Dashboard":
         fig.update_layout(legend_title="Measurement Point", hovermode="x unified")
         
         # --- Add annotations for notes ---
+        # Create a map of point_measurement names to their assigned colors
+        color_map = {trace.name: trace.line.color for trace in fig.data}
+
         # Filter for points that have a meaningful note
         notes_df = plot_df.dropna(subset=['note'])
-        # Also filter out notes that are just a hyphen or empty after stripping whitespace
         notes_df = notes_df[~notes_df['note'].astype(str).str.strip().isin(['', '-'])]
         
         # Add a vertical line and annotation for each valid note found
         for index, row in notes_df.iterrows():
-            # Add a vertical dotted line that spans the full height of the plot
+            point_name = row['point_measurement']
+            line_color = color_map.get(point_name)
+            
+            # Create a semi-transparent version of the line's color
+            if line_color and line_color.startswith('rgb'):
+                transparent_color = line_color.replace('rgb', 'rgba').replace(')', ', 0.6)')
+            else:
+                transparent_color = 'rgba(128, 128, 128, 0.6)' # Fallback to grey
+
+            # Add a vertical dotted line
             fig.add_shape(
                 type="line",
                 x0=row['date'], y0=0, x1=row['date'], y1=1,
-                yref='paper', # Use 'paper' to reference the full plot area
-                line=dict(color="grey", width=1, dash="dot")
+                yref='paper',
+                line=dict(color=transparent_color, width=1, dash="dot")
             )
-            # Add the note text as an annotation at the top of the line
+            # Add the note text as an annotation
             fig.add_annotation(
                 x=row['date'],
-                y=1.05, # Position the text slightly above the plot area
+                y=1.05,
                 yref='paper',
                 text=row['note'],
                 showarrow=False,
-                font=dict(size=10, color="grey"),
+                font=dict(size=10, color=transparent_color),
                 xanchor="center"
             )
         
