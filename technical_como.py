@@ -5,6 +5,7 @@ from sqlalchemy import create_engine
 from st_aggrid import AgGrid, GridOptionsBuilder
 import traceback
 
+st.set_page_config(layout="wide")
 # --- 1. Database Connection Setup ---
 try:
     DB_HOST = st.secrets["database"]["host"]
@@ -155,3 +156,4 @@ if point_choices:
 
 else:
     st.info("👆 Please select one or more measurement points to see the trend.")
+
