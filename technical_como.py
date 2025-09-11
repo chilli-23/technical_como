@@ -31,8 +31,6 @@ def load_data():
     Loads data by joining the 'data' and 'alarm_standards' tables.
     """
     try:
-        # --- CHANGE 1: SQL Query now joins with 'alarm_standards' ---
-        # It connects data.alarm_standard to alarm_standards.standard
         query = """
             SELECT 
                 d.equipment_name,
@@ -98,8 +96,7 @@ if point_choices:
     # --- 2. Single, Consolidated Alarm Standards Table ---
     st.subheader("Associated Alarm Standards for Selected Points")
     
-    # --- CHANGE 2: Updated the columns for the Alarm Standards table ---
-    # These columns now come from the 'alarm_standards' table via the JOIN.
+    # The 'alarm_standard' column is correctly placed here after 'point_measurement'
     alarm_cols = [
         "point_measurement",
         "alarm_standard", 
@@ -128,6 +125,10 @@ if point_choices:
         
         hist_cols = ["date", "value", "status", "note"]
         historical_df = point_df[hist_cols].sort_values(by="date", ascending=False)
+        
+        # --- THIS IS THE CHANGE ---
+        # Format the 'date' column to show only YYYY-MM-DD
+        historical_df['date'] = historical_df['date'].dt.strftime('%Y-%m-%d')
         
         st.dataframe(
             historical_df.style.applymap(color_status, subset=['status']),
