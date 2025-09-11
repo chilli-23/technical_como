@@ -96,11 +96,13 @@ if page == "Monitoring Dashboard":
         )
         fig.update_layout(legend_title="Measurement Point", hovermode="x unified")
         
-        # --- NEW FEATURE: Add annotations for notes ---
-        # Filter for points that have a non-empty note
+        # --- Add annotations for notes ---
+        # Filter for points that have a meaningful note
         notes_df = plot_df.dropna(subset=['note'])
+        # Also filter out notes that are just a hyphen or empty after stripping whitespace
+        notes_df = notes_df[~notes_df['note'].astype(str).str.strip().isin(['', '-'])]
         
-        # Add a vertical line and annotation for each note found
+        # Add a vertical line and annotation for each valid note found
         for index, row in notes_df.iterrows():
             # Add a vertical dotted line that spans the full height of the plot
             fig.add_shape(
