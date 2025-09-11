@@ -109,11 +109,18 @@ if page == "Monitoring Dashboard":
             point_name = row['point_measurement']
             line_color = color_map.get(point_name)
             
-            # Create a semi-transparent version of the line's color
-            if line_color and line_color.startswith('rgb'):
-                transparent_color = line_color.replace('rgb', 'rgba').replace(')', ', 0.6)')
-            else:
-                transparent_color = 'rgba(128, 128, 128, 0.6)' # Fallback to grey
+            # --- THIS IS THE FIX ---
+            # Default fallback color
+            transparent_color = 'rgba(128, 128, 128, 0.6)' 
+            
+            if line_color:
+                # Handle hex colors (e.g., '#1f77b4') by converting to rgba
+                if line_color.startswith('#'):
+                    r, g, b = tuple(int(line_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+                    transparent_color = f'rgba({r}, {g}, {b}, 0.6)'
+                # Handle existing rgb colors
+                elif line_color.startswith('rgb'):
+                    transparent_color = line_color.replace('rgb', 'rgba').replace(')', ', 0.6)')
 
             # Add a vertical dotted line
             fig.add_shape(
