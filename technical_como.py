@@ -28,7 +28,7 @@ except Exception as e:
 @st.cache_data(ttl=600)
 def load_data():
     """
-    Loads data by joining the 'data' and 'alarm_standards' tables.
+    Loads data by joining the 'data' and 'alarm_standards' tables, including the 'unit'.
     """
     try:
         query = """
@@ -38,6 +38,7 @@ def load_data():
                 d.point_measurement,
                 d.date,
                 d.value,
+                d.unit,
                 d.status,
                 d.note,
                 d.alarm_standard,
@@ -96,14 +97,14 @@ if point_choices:
     # --- 2. Single, Consolidated Alarm Standards Table ---
     st.subheader("Associated Alarm Standards for Selected Points")
     
-    # The 'alarm_standard' column is correctly placed here after 'point_measurement'
     alarm_cols = [
         "point_measurement",
         "alarm_standard", 
         "excellent", 
         "acceptable", 
         "requires_evaluation", 
-        "unacceptable"
+        "unacceptable",
+        "unit"
     ]
     alarm_df = filtered_df[alarm_cols].drop_duplicates()
     st.dataframe(alarm_df, use_container_width=True, hide_index=True)
@@ -123,16 +124,17 @@ if point_choices:
         
         point_df = filtered_df[filtered_df['point_measurement'] == point]
         
-        hist_cols = ["date", "value", "status", "note"]
+        hist_cols = ["date", "value", "unit", "status", "note"]
         historical_df = point_df[hist_cols].sort_values(by="date", ascending=False)
         
-        # --- THIS IS THE CHANGE ---
-        # Format the 'date' column to show only YYYY-MM-DD
         historical_df['date'] = historical_df['date'].dt.strftime('%Y-%m-%d')
         
+        # --- THIS IS THE CHANGE ---
+        # The .format() for the 'value' column has been removed.
         st.dataframe(
             historical_df.style.applymap(color_status, subset=['status']),
-            use_container_width=True, hide_index=True
+            use_container_width=True, 
+            hide_index=True
         )
         st.markdown("---")
 
