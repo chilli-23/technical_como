@@ -88,58 +88,61 @@ if page == "Monitoring Dashboard":
         
         st.header(f"Results for: {equipment_choice} → {component_choice}")
         
+        # --- THE FIX: PART 1 ---
+        # 1. Define a list of bright, "neon" colors.
+        bright_color_palette = [
+            "#00FFFF",  # Cyan/Aqua
+            "#7FFF00",  # Chartreuse
+            "#FF00FF",  # Magenta/Fuchsia
+            "#FFD700",  # Gold
+            "#FF4500",  # OrangeRed
+            "#1E90FF",  # DodgerBlue
+            "#ADFF2F",  # GreenYellow
+            "#FF69B4"   # HotPink
+        ]
+        
+        # 2. Create a specific color map for the selected points.
+        unique_points = sorted(filtered_df['point_measurement'].unique())
+        color_map = {point: bright_color_palette[i % len(bright_color_palette)] for i, point in enumerate(unique_points)}
+
         # Trend Graph
         plot_df = filtered_df.sort_values(by="date")
         fig = px.line(
             plot_df, x="date", y="value", color="point_measurement", markers=True,
-            title="Selected Measurement Points Trend"
+            title="Selected Measurement Points Trend",
+            color_discrete_map=color_map # 3. Force the graph to use our defined colors.
         )
         fig.update_layout(legend_title="Measurement Point", hovermode="x unified")
         
         # --- Add annotations for notes ---
-        # Create a more robust map of point names to their assigned colors
-        color_map = {str(trace.name).strip(): trace.line.color for trace in fig.data}
-
-        # Filter for points that have a meaningful note
         notes_df = plot_df.dropna(subset=['note'])
         notes_df = notes_df[~notes_df['note'].astype(str).str.strip().isin(['', '-'])]
         
         for index, row in notes_df.iterrows():
             point_name = str(row['point_measurement']).strip()
+            # 4. Look up the color from our own reliable map.
             line_color = color_map.get(point_name)
             
-            # Default fallback colors
-            solid_color = 'rgb(200, 200, 200)' # Light grey for visibility on dark backgrounds
+            solid_color = 'rgb(200, 200, 200)' 
             transparent_color = 'rgba(200, 200, 200, 0.5)' 
             
             if line_color:
-                # Handle hex colors (e.g., '#1f77b4') by converting to rgba
-                if line_color.startswith('#'):
-                    r, g, b = tuple(int(line_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
-                    solid_color = f'rgb({r}, {g}, {b})'
-                    transparent_color = f'rgba({r}, {g}, {b}, 0.5)'
-                # Handle existing rgb colors
-                elif line_color.startswith('rgb'):
-                    solid_color = line_color
-                    transparent_color = line_color.replace('rgb', 'rgba').replace(')', ', 0.5)')
+                # Convert the hex code from our map to solid and transparent versions.
+                r, g, b = tuple(int(line_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+                solid_color = f'rgb({r}, {g}, {b})'
+                transparent_color = f'rgba({r}, {g}, {b}, 0.5)'
 
-            # Add a vertical dotted line with a semi-transparent color
+            # Add a vertical dotted line
             fig.add_shape(
-                type="line",
-                x0=row['date'], y0=0, x1=row['date'], y1=1,
-                yref='paper',
-                line=dict(color=transparent_color, width=1, dash="dot")
+                type="line", x0=row['date'], y0=0, x1=row['date'], y1=1,
+                yref='paper', line=dict(color=transparent_color, width=1, dash="dot")
             )
-            # Add the note text as an annotation with the solid line color and new legend format
+            # Add the note text annotation
             fig.add_annotation(
-                x=row['date'],
-                y=1.05,
-                yref='paper',
+                x=row['date'], y=1.05, yref='paper',
                 text=f"{row['note']}<br><b>({row['point_measurement']})</b>",
-                showarrow=False,
-                font=dict(size=10, color=solid_color),
-                xanchor="center",
-                align="center"
+                showarrow=False, font=dict(size=10, color=solid_color),
+                xanchor="center", align="center"
             )
         
         st.plotly_chart(fig, use_container_width=True)
@@ -187,13 +190,11 @@ elif page == "Upload New Data":
     table_options = ["data", "alarm_standards", "equipment", "alarm"]
     target_table = st.selectbox("1. Select table to add data to", options=table_options)
 
-    # Allow both csv and xlsx file types
     uploaded_file = st.file_uploader("2. Choose a file", type=["csv", "xlsx"])
 
     if st.button("3. Upload and Add Data"):
         if uploaded_file is not None and target_table is not None:
             try:
-                # Read the file based on its extension
                 if uploaded_file.name.endswith('.csv'):
                     upload_df = pd.read_csv(uploaded_file)
                 elif uploaded_file.name.endswith('.xlsx'):
