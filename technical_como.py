@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from sqlalchemy import create_engine
-from st_aggrid import AgGrid, GridOptionsBuilder
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 import traceback
 
 # --- 1. Database Connection Setup ---
@@ -31,20 +31,12 @@ except Exception:
 def load_data():
     query = """
         SELECT 
-            equipment_tag_id,
-            equipment_name,
-            technology,
-            component,
-            key,
-            alarm_standard,
-            date,
-            point_measurement,
-            value,
-            unit,
-            status
-        FROM data
-        WHERE value IS NOT NULL
-        ORDER BY date;
+            d.date, d.equipment_name, d.component, d.point_measurement,
+            d.value, d.unit, d.status, d.technology, d.key, d.note,
+            d.equipment_tag_id, d.alarm_standard
+        FROM data d
+        WHERE d.value IS NOT NULL
+        ORDER BY d.date;
     """
     return pd.read_sql(query, connection)
 
@@ -59,7 +51,7 @@ except Exception:
     st.stop()
 
 
-# --- 3. Filters (horizontal layout) ---
+# --- 3. Filters ---
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -79,11 +71,10 @@ with col3:
     point_choices = st.multiselect("Measurement Point(s)", options=sorted(points))
 
 
-# --- 4. Plot only if points selected ---
+# --- 4. Graph ---
 if point_choices:
     plot_df = filtered_comp[filtered_comp["point_measurement"].isin(point_choices)].copy()
 
-    # add unit to legend labels
     plot_df["point_with_unit"] = (
         plot_df["point_measurement"] + " (" + plot_df["unit"].astype(str) + ")"
     )
@@ -105,43 +96,68 @@ if point_choices:
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- 5. Table of selected measurements ---
-    table_df = plot_df[
-        ["point_measurement", "equipment_tag_id", "technology", "key", "date", "value", "unit", "status"]
+    # --- 5. Historical Data Table (AgGrid) ---
+    st.subheader("📑 Historical Data")
+    hist_df = plot_df[
+        [
+            "point_measurement",
+            "technology",
+            "key",
+            "date",
+            "value",
+            "unit",
+            "status",
+            "note",
+        ]
     ].copy()
 
-    # Set up AgGrid with conditional formatting
-    gb = GridOptionsBuilder.from_dataframe(table_df)
-    gb.configure_pagination(enabled=True, paginationAutoPageSize=True)
-    gb.configure_default_column(resizable=True, filter=True, sortable=True)
-
-    # Custom cell style for status
-    status_colors = {
-        "Excellent": "rgba(0, 128, 0, 0.8)",      # Dark green
-        "Acceptable": "rgba(144, 238, 144, 0.8)", # Light green
-        "Requires Evaluation": "rgba(255, 255, 0, 0.8)", # Yellow
-        "Unacceptable": "rgba(255, 0, 0, 0.8)",   # Red
-    }
-
-    cell_style_jscode = """
+    # Conditional cell coloring (status column)
+    status_color_js = JsCode("""
     function(params) {
-        if (params.value === 'Excellent') {
-            return { 'backgroundColor': 'rgba(0,128,0,0.8)', 'color': 'white' };
-        } else if (params.value === 'Acceptable') {
-            return { 'backgroundColor': 'rgba(144,238,144,0.8)', 'color': 'black' };
-        } else if (params.value === 'Requires Evaluation') {
-            return { 'backgroundColor': 'rgba(255,255,0,0.8)', 'color': 'black' };
-        } else if (params.value === 'Unacceptable') {
-            return { 'backgroundColor': 'rgba(255,0,0,0.8)', 'color': 'white' };
+        if (params.value == 'excellent') {
+            return {'color': 'white', 'backgroundColor': 'rgba(0,128,0,0.8)'};  // Dark green
+        } else if (params.value == 'acceptable') {
+            return {'color': 'black', 'backgroundColor': 'rgba(144,238,144,0.8)'};  // Light green
+        } else if (params.value == 'requires evaluation') {
+            return {'color': 'black', 'backgroundColor': 'rgba(255,255,0,0.8)'};  // Yellow
+        } else if (params.value == 'unacceptable') {
+            return {'color': 'white', 'backgroundColor': 'rgba(255,0,0,0.8)'};  // Red
         }
+        return null;
     }
-    """
-    gb.configure_column("status", cellStyle=cell_style_jscode)
+    """)
 
+    gb = GridOptionsBuilder.from_dataframe(hist_df)
+    gb.configure_columns(hist_df.columns, wrapText=True, autoHeight=True)
+    gb.configure_column("status", cellStyle=status_color_js)
+    gb.configure_pagination(paginationAutoPageSize=True)
+    gb.configure_side_bar()
     grid_options = gb.build()
 
-    st.markdown("### 📋 Selected Measurement Details")
-    AgGrid(table_df, gridOptions=grid_options, fit_columns_on_grid_load=True)
+    AgGrid(hist_df, gridOptions=grid_options, height=300, theme="balham")
+
+    # --- 6. Alarm Info Table (AgGrid) ---
+    st.subheader("🚨 Alarm Settings")
+    query_alarm = f"""
+        SELECT a.alarm_standard, a.parameter, a.excellent, a.acceptable,
+               a.requires_evaluation, a.unacceptable, a.al_set, a.load_kw
+        FROM alarm a
+        WHERE a.alarm_standard IN (
+            SELECT DISTINCT alarm_standard
+            FROM data
+            WHERE point_measurement = ANY(ARRAY{point_choices})
+        );
+    """
+    try:
+        alarm_df = pd.read_sql(query_alarm, connection)
+        gb2 = GridOptionsBuilder.from_dataframe(alarm_df)
+        gb2.configure_pagination(paginationAutoPageSize=True)
+        gb2.configure_side_bar()
+        grid_options2 = gb2.build()
+
+        AgGrid(alarm_df, gridOptions=grid_options2, height=250, theme="balham")
+    except Exception:
+        st.warning("⚠️ No alarm info available for the selected points.")
 
 else:
     st.info("👆 Please select one or more measurement points to see the trend.")
