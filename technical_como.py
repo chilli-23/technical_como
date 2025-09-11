@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from sqlalchemy import create_engine
+from st_aggrid import AgGrid, GridOptionsBuilder
 import traceback
 
 # --- 1. Database Connection Setup ---
@@ -29,7 +30,18 @@ except Exception:
 @st.cache_data
 def load_data():
     query = """
-        SELECT date, equipment_name, component, point_measurement, value, unit
+        SELECT 
+            equipment_tag_id,
+            equipment_name,
+            technology,
+            component,
+            key,
+            alarm_standard,
+            date,
+            point_measurement,
+            value,
+            unit,
+            status
         FROM data
         WHERE value IS NOT NULL
         ORDER BY date;
@@ -92,5 +104,44 @@ if point_choices:
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+    # --- 5. Table of selected measurements ---
+    table_df = plot_df[
+        ["point_measurement", "equipment_tag_id", "technology", "key", "date", "value", "unit", "status"]
+    ].copy()
+
+    # Set up AgGrid with conditional formatting
+    gb = GridOptionsBuilder.from_dataframe(table_df)
+    gb.configure_pagination(enabled=True, paginationAutoPageSize=True)
+    gb.configure_default_column(resizable=True, filter=True, sortable=True)
+
+    # Custom cell style for status
+    status_colors = {
+        "Excellent": "rgba(0, 128, 0, 0.8)",      # Dark green
+        "Acceptable": "rgba(144, 238, 144, 0.8)", # Light green
+        "Requires Evaluation": "rgba(255, 255, 0, 0.8)", # Yellow
+        "Unacceptable": "rgba(255, 0, 0, 0.8)",   # Red
+    }
+
+    cell_style_jscode = """
+    function(params) {
+        if (params.value === 'Excellent') {
+            return { 'backgroundColor': 'rgba(0,128,0,0.8)', 'color': 'white' };
+        } else if (params.value === 'Acceptable') {
+            return { 'backgroundColor': 'rgba(144,238,144,0.8)', 'color': 'black' };
+        } else if (params.value === 'Requires Evaluation') {
+            return { 'backgroundColor': 'rgba(255,255,0,0.8)', 'color': 'black' };
+        } else if (params.value === 'Unacceptable') {
+            return { 'backgroundColor': 'rgba(255,0,0,0.8)', 'color': 'white' };
+        }
+    }
+    """
+    gb.configure_column("status", cellStyle=cell_style_jscode)
+
+    grid_options = gb.build()
+
+    st.markdown("### 📋 Selected Measurement Details")
+    AgGrid(table_df, gridOptions=grid_options, fit_columns_on_grid_load=True)
+
 else:
     st.info("👆 Please select one or more measurement points to see the trend.")
