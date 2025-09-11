@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine, text
+import plotly.express as px
+from sqlalchemy import create_engine
 import traceback
 
 # --- 1. Database Connection Setup ---
@@ -18,23 +19,71 @@ try:
     connection = engine.connect()
     st.success("✅ Connected to database!")
 
-except Exception as e:
+except Exception:
     st.error("❌ Database connection failed!")
     st.code(traceback.format_exc())
     st.stop()
 
-# --- 2. Load Data Table ---
-try:
+
+# --- 2. Load Data ---
+@st.cache_data
+def load_data():
     query = """
-        SELECT *
+        SELECT date, equipment_name, component, point_measurement, value, unit
         FROM data
-        LIMIT 200;  -- just to avoid loading huge dataset
+        WHERE value IS NOT NULL
+        ORDER BY date;
     """
-    df = pd.read_sql(query, connection)
+    return pd.read_sql(query, connection)
 
-    st.subheader("📊 Data Table Preview")
-    st.dataframe(df, use_container_width=True)
+try:
+    df = load_data()
+    st.subheader("📊 Technical Condition Monitoring Dashboard")
+    st.caption("Filter from Equipment → Component → Point Measurement")
 
-except Exception as e:
-    st.error("❌ Could not load data table.")
+except Exception:
+    st.error("❌ Could not load data.")
     st.code(traceback.format_exc())
+    st.stop()
+
+
+# --- 3. Filters ---
+equipments = df["equipment_name"].dropna().unique()
+equipment_choice = st.selectbox("Select Equipment", options=sorted(equipments))
+
+filtered_eq = df[df["equipment_name"] == equipment_choice]
+
+components = filtered_eq["component"].dropna().unique()
+component_choice = st.selectbox("Select Component", options=sorted(components))
+
+filtered_comp = filtered_eq[filtered_eq["component"] == component_choice]
+
+points = filtered_comp["point_measurement"].dropna().unique()
+point_choices = st.multiselect("Select Measurement Points", options=sorted(points))
+
+# --- 4. Plot ---
+if point_choices:
+    plot_df = filtered_comp[filtered_comp["point_measurement"].isin(point_choices)].copy()
+
+    # add unit to legend labels
+    plot_df["point_with_unit"] = plot_df["point_measurement"] + " (" + plot_df["unit"].astype(str) + ")"
+
+    fig = px.line(
+        plot_df,
+        x="date",
+        y="value",
+        color="point_with_unit",
+        markers=True,
+        title=f"Trend for {equipment_choice} - {component_choice}",
+    )
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Value",
+        legend_title="Measurement Point",
+        hovermode="x unified",
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+else:
+    st.info("👆 Please select one or more measurement points to see the trend.")
