@@ -38,7 +38,6 @@ def load_data():
     """Loads and caches data from the database for the dashboard."""
     try:
         with engine.connect() as connection:
-            # --- CHANGE 1: Added d.equipment_tag_id to the query ---
             query = """
                 SELECT 
                     d.equipment_tag_id, d.equipment_name, d.component, d.point_measurement,
@@ -230,11 +229,29 @@ elif page == "Upload New Data":
                 
                 upload_cols = upload_df.columns.tolist()
 
-                if set(upload_cols) != set(db_cols):
+                # --- THIS IS THE CHANGE: More detailed column error reporting ---
+                db_cols_set = set(db_cols)
+                upload_cols_set = set(upload_cols)
+
+                if upload_cols_set != db_cols_set:
                     st.error(f"Column Mismatch! The file columns do not match the '{target_table}' table.")
-                    st.write("**Expected Columns:**", sorted(db_cols))
-                    st.write("**Your File's Columns:**", sorted(upload_cols))
+                    
+                    missing_cols = list(db_cols_set - upload_cols_set)
+                    extra_cols = list(upload_cols_set - db_cols_set)
+                    
+                    if missing_cols:
+                        st.warning("**Columns missing from your file:**")
+                        st.json(sorted(missing_cols))
+                        
+                    if extra_cols:
+                        st.warning("**Unexpected columns found in your file:**")
+                        st.json(sorted(extra_cols))
+                    
+                    st.info("For reference:")
+                    st.write("**Full list of expected columns:**", sorted(db_cols))
+                    st.write("**Full list of your file's columns:**", sorted(upload_cols))
                     st.stop()
+                # --- End of change ---
 
                 # --- Append data to the database ---
                 st.info(f"Columns match. Appending {len(upload_df)} rows to '{target_table}'...")
