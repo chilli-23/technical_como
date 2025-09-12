@@ -38,9 +38,10 @@ def load_data():
     """Loads and caches data from the database for the dashboard."""
     try:
         with engine.connect() as connection:
+            # --- CHANGE 1: Added d.equipment_tag_id to the query ---
             query = """
                 SELECT 
-                    d.equipment_name, d.component, d.point_measurement,
+                    d.equipment_tag_id, d.equipment_name, d.component, d.point_measurement,
                     d.date, d.value, d.unit, d.status, d.note, d.alarm_standard,
                     stds.excellent, stds.acceptable, stds.requires_evaluation, stds.unacceptable
                 FROM data d
@@ -90,14 +91,11 @@ if page == "Monitoring Dashboard":
         
         st.header(f"Results for: {equipment_choice} → {component_choice}")
         
-        # --- THE FIX: PART 1 ---
-        # 1. Define a list of standard, professional colors.
         professional_color_palette = [
             '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
             '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
         ]
         
-        # 2. Create a specific color map for the selected points.
         unique_points = sorted(filtered_df['point_measurement'].unique())
         color_map = {point: professional_color_palette[i % len(professional_color_palette)] for i, point in enumerate(unique_points)}
 
@@ -106,7 +104,7 @@ if page == "Monitoring Dashboard":
         fig = px.line(
             plot_df, x="date", y="value", color="point_measurement", markers=True,
             title="Selected Measurement Points Trend",
-            color_discrete_map=color_map # 3. Force the graph to use our defined colors.
+            color_discrete_map=color_map
         )
         fig.update_layout(legend_title="Measurement Point", hovermode="x unified")
         
@@ -116,24 +114,20 @@ if page == "Monitoring Dashboard":
         
         for index, row in notes_df.iterrows():
             point_name = str(row['point_measurement']).strip()
-            # 4. Look up the color from our own reliable map.
             line_color = color_map.get(point_name)
             
             solid_color = 'rgb(200, 200, 200)' 
             transparent_color = 'rgba(200, 200, 200, 0.5)' 
             
             if line_color:
-                # Convert the hex code from our map to solid and transparent versions.
                 r, g, b = tuple(int(line_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
                 solid_color = f'rgb({r}, {g}, {b})'
                 transparent_color = f'rgba({r}, {g}, {b}, 0.5)'
 
-            # Add a vertical dotted line
             fig.add_shape(
                 type="line", x0=row['date'], y0=0, x1=row['date'], y1=1,
                 yref='paper', line=dict(color=transparent_color, width=1, dash="dot")
             )
-            # Add the note text annotation
             fig.add_annotation(
                 x=row['date'], y=1.05, yref='paper',
                 text=f"{row['note']}<br><b>({row['point_measurement']})</b>",
@@ -144,10 +138,14 @@ if page == "Monitoring Dashboard":
         st.plotly_chart(fig, use_container_width=True)
 
         # Alarm Standards Table
+        # --- CHANGE 2: Renamed subheader ---
         st.subheader("Alarm Standards")
+        # --- CHANGE 3: Added 'equipment_tag_id' to the column list ---
         alarm_cols = ["point_measurement", "equipment_tag_id", "alarm_standard", "excellent", "acceptable", "requires_evaluation", "unacceptable", "unit"]
         alarm_df = filtered_df[alarm_cols].drop_duplicates()
-        st.dataframe(alarm_df, use_container_width=True, hide_index=True)
+        alarm_df = alarm_df.reset_index(drop=True)
+        alarm_df.index = range(1, len(alarm_df) + 1)
+        st.dataframe(alarm_df, use_container_width=True, hide_index=False)
         
         def color_status(val):
             val_lower = str(val).lower()
@@ -166,10 +164,13 @@ if page == "Monitoring Dashboard":
             historical_df = point_df[hist_cols].sort_values(by="date", ascending=False)
             historical_df['date'] = historical_df['date'].dt.strftime('%Y-%m-%d')
             
+            historical_df = historical_df.reset_index(drop=True)
+            historical_df.index = range(1, len(historical_df) + 1)
+            
             st.dataframe(
                 historical_df.style.format({'value': '{:g}'}).applymap(color_status, subset=['status']),
                 use_container_width=True, 
-                hide_index=True
+                hide_index=False
             )
             st.markdown("---")
     else:
@@ -239,7 +240,7 @@ elif page == "Database Viewer":
     st.write("Select a table from the dropdown to view its entire contents.")
 
     # Dropdown to select the table
-    table_options = ["data", "alarm_standards", "equipment", "alarm", "component"]
+    table_options = ["data", "alarm_standards", "equipment", "alarm"]
     table_to_view = st.selectbox("Choose a table to display", options=table_options)
 
     if table_to_view:
@@ -266,8 +267,9 @@ elif page == "Database Viewer":
         
         if not table_df.empty:
             st.info(f"Displaying {len(table_df)} rows from the '{table_to_view}' table.")
+            table_df = table_df.reset_index(drop=True)
+            table_df.index = range(1, len(table_df) + 1)
             st.dataframe(table_df, use_container_width=True)
         else:
             st.warning(f"The table '{table_to_view}' is empty or could not be loaded.")
-
 
