@@ -144,8 +144,8 @@ if page == "Monitoring Dashboard":
         st.plotly_chart(fig, use_container_width=True)
 
         # Alarm Standards Table
-        st.subheader("Associated Alarm Standards")
-        alarm_cols = ["point_measurement", "alarm_standard", "excellent", "acceptable", "requires_evaluation", "unacceptable", "unit"]
+        st.subheader("Alarm Standards")
+        alarm_cols = ["point_measurement", "equipment_tag_id", "alarm_standard", "excellent", "acceptable", "requires_evaluation", "unacceptable", "unit"]
         alarm_df = filtered_df[alarm_cols].drop_duplicates()
         st.dataframe(alarm_df, use_container_width=True, hide_index=True)
         
@@ -269,4 +269,5 @@ elif page == "Database Viewer":
             st.dataframe(table_df, use_container_width=True)
         else:
             st.warning(f"The table '{table_to_view}' is empty or could not be loaded.")
+
 
