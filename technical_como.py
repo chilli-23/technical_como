@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from sqlalchemy import create_engine, text
-from sqlalchemy.pool import NullPool # <-- CHANGE 1: Imported NullPool
+from sqlalchemy.pool import NullPool
 import traceback
 import openpyxl 
 
@@ -19,7 +19,6 @@ def get_engine():
         DB_NAME = st.secrets["database"]["dbname"]
         DB_USER = st.secrets["database"]["user"]
         DB_PASS = st.secrets["database"]["password"]
-        # --- CHANGE 2: Added poolclass=NullPool to work better with Supabase ---
         return create_engine(
             f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
             poolclass=NullPool
@@ -91,11 +90,14 @@ if page == "Monitoring Dashboard":
         
         st.header(f"Results for: {equipment_choice} → {component_choice}")
         
+        # --- THE FIX: PART 1 ---
+        # 1. Define a list of standard, professional colors.
         professional_color_palette = [
             '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
             '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
         ]
         
+        # 2. Create a specific color map for the selected points.
         unique_points = sorted(filtered_df['point_measurement'].unique())
         color_map = {point: professional_color_palette[i % len(professional_color_palette)] for i, point in enumerate(unique_points)}
 
@@ -104,7 +106,7 @@ if page == "Monitoring Dashboard":
         fig = px.line(
             plot_df, x="date", y="value", color="point_measurement", markers=True,
             title="Selected Measurement Points Trend",
-            color_discrete_map=color_map
+            color_discrete_map=color_map # 3. Force the graph to use our defined colors.
         )
         fig.update_layout(legend_title="Measurement Point", hovermode="x unified")
         
@@ -114,20 +116,24 @@ if page == "Monitoring Dashboard":
         
         for index, row in notes_df.iterrows():
             point_name = str(row['point_measurement']).strip()
+            # 4. Look up the color from our own reliable map.
             line_color = color_map.get(point_name)
             
             solid_color = 'rgb(200, 200, 200)' 
             transparent_color = 'rgba(200, 200, 200, 0.5)' 
             
             if line_color:
+                # Convert the hex code from our map to solid and transparent versions.
                 r, g, b = tuple(int(line_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
                 solid_color = f'rgb({r}, {g}, {b})'
                 transparent_color = f'rgba({r}, {g}, {b}, 0.5)'
 
+            # Add a vertical dotted line
             fig.add_shape(
                 type="line", x0=row['date'], y0=0, x1=row['date'], y1=1,
                 yref='paper', line=dict(color=transparent_color, width=1, dash="dot")
             )
+            # Add the note text annotation
             fig.add_annotation(
                 x=row['date'], y=1.05, yref='paper',
                 text=f"{row['note']}<br><b>({row['point_measurement']})</b>",
