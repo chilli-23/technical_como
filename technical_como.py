@@ -211,7 +211,7 @@ elif page == "Upload New Data":
         st.title("Upload New Data")
     st.write("Use this page to add new records to the database tables from a CSV or XLSX file.")
     
-    table_options = ["data", "alarm_standards", "equipment", "alarm"]
+    table_options = ["data", "alarm_standards", "equipment", "alarm", "component"]
     target_table = st.selectbox("1. Select table to add data to", options=table_options)
     uploaded_file = st.file_uploader("2. Choose a file", type=["csv", "xlsx"])
 
@@ -294,7 +294,7 @@ elif page == "Database Viewer":
         st.title("Database Table Viewer")
     st.write("Select a table from the dropdown to view its entire contents.")
 
-    table_options = ["data", "alarm_standards", "equipment", "alarm"]
+    table_options = ["data", "alarm_standards", "equipment", "alarm", "component"]
     table_to_view = st.selectbox("Choose a table to display", options=table_options)
 
     if st.button("🔄 Refresh Table View"):
@@ -323,4 +323,5 @@ elif page == "Database Viewer":
             )
         else:
             st.warning(f"The table '{table_to_view}' is empty or could not be loaded.")
+
 
