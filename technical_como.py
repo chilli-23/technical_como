@@ -24,7 +24,7 @@ def get_engine():
             poolclass=NullPool
         )
     except Exception as e:
-        st.error("❌ Database connection failed. Please check your credentials in secrets.toml.")
+        st.error("Database connection failed. Please check your credentials in secrets.toml.")
         st.code(traceback.format_exc())
         return None
 
@@ -52,7 +52,7 @@ def load_data():
         df.dropna(subset=['date'], inplace=True)
         return df
     except Exception as e:
-        st.error("❌ Failed to load data from the database.")
+        st.error("Failed to load data from the database.")
         st.code(traceback.format_exc())
         return pd.DataFrame()
 
@@ -60,11 +60,18 @@ def load_data():
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Choose a page", ["Monitoring Dashboard", "Upload New Data", "Database Viewer"])
 
+# --- Logo URL ---
+LOGO_URL = "https://raw.githubusercontent.com/chilli-23/technical_como/main/alamtri_logo.jpeg"
+
 # --- ==================================================================== ---
 # ---                             PAGE 1: DASHBOARD                        ---
 # --- ==================================================================== ---
 if page == "Monitoring Dashboard":
-    st.title("📊 Technical Condition Monitoring Dashboard")
+    col1, col2 = st.columns([1, 10])
+    with col1:
+        st.image(LOGO_URL, width=80)
+    with col2:
+        st.title("Technical Condition Monitoring Dashboard")
     
     # Load data for the dashboard
     df = load_data()
@@ -198,7 +205,12 @@ if page == "Monitoring Dashboard":
 # ---                          PAGE 2: UPLOAD DATA                         ---
 # --- ==================================================================== ---
 elif page == "Upload New Data":
-    st.title("⬆️ Upload New Data")
+    col1, col2 = st.columns([1, 10])
+    with col1:
+        st.image(LOGO_URL, width=80)
+    with col2:
+        st.title("Upload New Data")
+    
     st.write("Use this page to add new records to the database tables from a CSV or XLSX file.")
     
     # --- Uploader UI ---
@@ -245,15 +257,11 @@ elif page == "Upload New Data":
                     st.write("**Full list of your file's columns:**", sorted(upload_cols))
                     st.stop()
                 
-                # --- THIS IS THE CHANGE: Safety Check 2: Check for duplicate primary keys ---
-                # Assumes the unique key is 'identifier' for the 'data' table. Adjust if needed.
+                # --- Safety Check 2: Check for duplicate primary keys ---
                 unique_key = None
                 if target_table == 'data':
                     unique_key = 'identifier'
-                # Add other tables and their unique keys here if they also need this check
-                # elif target_table == 'alarm_standards':
-                #     unique_key = 'standard' 
-
+                
                 if unique_key and unique_key in upload_df.columns:
                     st.info(f"Checking for duplicate '{unique_key}' values...")
                     upload_ids = upload_df[unique_key].dropna().tolist()
@@ -271,14 +279,13 @@ elif page == "Upload New Data":
                             st.warning(f"The '{unique_key}' column must be unique for every record. Please remove or update the following rows in your file before trying again:")
                             st.json(sorted(list(set(duplicate_ids))))
                             st.stop()
-                # --- End of change ---
 
                 # --- Append data to the database ---
                 st.info(f"All checks passed. Appending {len(upload_df)} rows to '{target_table}'...")
                 with engine.connect() as connection:
                     upload_df.to_sql(target_table, con=connection, if_exists='append', index=False)
                 
-                st.success(f"✅ Successfully added {len(upload_df)} rows to the '{target_table}' table!")
+                st.success(f"Successfully added {len(upload_df)} rows to the '{target_table}' table!")
                 st.info("Clearing data cache... The dashboard will show the new data on its next load.")
                 st.cache_data.clear()
 
@@ -292,7 +299,12 @@ elif page == "Upload New Data":
 # ---                       PAGE 3: DATABASE VIEWER                        ---
 # --- ==================================================================== ---
 elif page == "Database Viewer":
-    st.title("🗂️ Database Table Viewer")
+    col1, col2 = st.columns([1, 10])
+    with col1:
+        st.image(LOGO_URL, width=80)
+    with col2:
+        st.title("Database Table Viewer")
+
     st.write("Select a table from the dropdown to view its entire contents.")
 
     # Dropdown to select the table
