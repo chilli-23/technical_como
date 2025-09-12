@@ -138,14 +138,26 @@ if page == "Monitoring Dashboard":
         st.plotly_chart(fig, use_container_width=True)
 
         # Alarm Standards Table
-        # --- CHANGE 2: Renamed subheader ---
         st.subheader("Alarm Standards")
-        # --- CHANGE 3: Added 'equipment_tag_id' to the column list ---
         alarm_cols = ["point_measurement", "equipment_tag_id", "alarm_standard", "excellent", "acceptable", "requires_evaluation", "unacceptable", "unit"]
         alarm_df = filtered_df[alarm_cols].drop_duplicates()
         alarm_df = alarm_df.reset_index(drop=True)
         alarm_df.index = range(1, len(alarm_df) + 1)
-        st.dataframe(alarm_df, use_container_width=True, hide_index=False)
+        st.dataframe(
+            alarm_df, 
+            use_container_width=True, 
+            hide_index=False,
+            column_config={
+                "point_measurement": st.column_config.TextColumn(width="medium"),
+                "equipment_tag_id": st.column_config.TextColumn(width="medium"),
+                "alarm_standard": st.column_config.TextColumn(width="medium"),
+                "excellent": st.column_config.TextColumn(width="small"),
+                "acceptable": st.column_config.TextColumn(width="small"),
+                "requires_evaluation": st.column_config.TextColumn(width="small"),
+                "unacceptable": st.column_config.TextColumn(width="small"),
+                "unit": st.column_config.TextColumn(width="small"),
+            }
+        )
         
         def color_status(val):
             val_lower = str(val).lower()
@@ -170,7 +182,14 @@ if page == "Monitoring Dashboard":
             st.dataframe(
                 historical_df.style.format({'value': '{:g}'}).applymap(color_status, subset=['status']),
                 use_container_width=True, 
-                hide_index=False
+                hide_index=False,
+                column_config={
+                    "date": st.column_config.TextColumn(width="small"),
+                    "value": st.column_config.TextColumn(width="small"),
+                    "unit": st.column_config.TextColumn(width="small"),
+                    "status": st.column_config.TextColumn(width="medium"),
+                    "note": st.column_config.TextColumn(width="large"),
+                }
             )
             st.markdown("---")
     else:
@@ -269,7 +288,13 @@ elif page == "Database Viewer":
             st.info(f"Displaying {len(table_df)} rows from the '{table_to_view}' table.")
             table_df = table_df.reset_index(drop=True)
             table_df.index = range(1, len(table_df) + 1)
-            st.dataframe(table_df, use_container_width=True)
+            st.dataframe(
+                table_df, 
+                use_container_width=True,
+                column_config={
+                    col: st.column_config.TextColumn(width="medium") for col in table_df.columns
+                }
+            )
         else:
             st.warning(f"The table '{table_to_view}' is empty or could not be loaded.")
 
