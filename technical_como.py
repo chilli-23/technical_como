@@ -35,7 +35,7 @@ if engine is None:
 # --- Data Loading Function ---
 @st.cache_data(ttl=600)
 def load_data():
-    """Loads and caches data from the database."""
+    """Loads and caches data from the database for the dashboard."""
     try:
         with engine.connect() as connection:
             query = """
@@ -58,7 +58,7 @@ def load_data():
 
 # --- Sidebar for Navigation ---
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Choose a page", ["Monitoring Dashboard", "Upload New Data"])
+page = st.sidebar.radio("Choose a page", ["Monitoring Dashboard", "Upload New Data", "Database Viewer"])
 
 # --- ==================================================================== ---
 # ---                             PAGE 1: DASHBOARD                        ---
@@ -230,4 +230,43 @@ elif page == "Upload New Data":
                 st.code(traceback.format_exc())
         else:
             st.warning("⚠️ Please select a table and upload a file first.")
+
+# --- ==================================================================== ---
+# ---                       PAGE 3: DATABASE VIEWER                        ---
+# --- ==================================================================== ---
+elif page == "Database Viewer":
+    st.title("🗂️ Database Table Viewer")
+    st.write("Select a table from the dropdown to view its entire contents.")
+
+    # Dropdown to select the table
+    table_options = ["data", "alarm_standards", "equipment", "alarm", "component"]
+    table_to_view = st.selectbox("Choose a table to display", options=table_options)
+
+    if table_to_view:
+        # A new function to fetch data from any table
+        @st.cache_data(ttl=60) # Short cache for viewing raw data
+        def view_table_data(table_name):
+            try:
+                with engine.connect() as connection:
+                    # Basic check to ensure a valid table name is used
+                    if table_name not in table_options:
+                        st.error("Invalid table selected.")
+                        return pd.DataFrame()
+                    
+                    query = text(f"SELECT * FROM {table_name}")
+                    df = pd.read_sql(query, connection)
+                    return df
+            except Exception as e:
+                st.error(f"Failed to load data from table '{table_name}'.")
+                st.code(traceback.format_exc())
+                return pd.DataFrame()
+        
+        # Fetch and display the data
+        table_df = view_table_data(table_to_view)
+        
+        if not table_df.empty:
+            st.info(f"Displaying {len(table_df)} rows from the '{table_to_view}' table.")
+            st.dataframe(table_df, use_container_width=True)
+        else:
+            st.warning(f"The table '{table_to_view}' is empty or could not be loaded.")
 
