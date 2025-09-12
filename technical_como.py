@@ -221,7 +221,7 @@ elif page == "Upload New Data":
                 st.write("Preview of uploaded data:")
                 st.dataframe(upload_df.head())
 
-                # --- Safety Check: Validate Columns ---
+                # --- Safety Check 1: Validate Columns ---
                 st.info(f"Checking columns for the '{target_table}' table...")
                 with engine.connect() as connection:
                     db_cols_query = text(f"SELECT * FROM {target_table} LIMIT 0")
@@ -229,32 +229,52 @@ elif page == "Upload New Data":
                 
                 upload_cols = upload_df.columns.tolist()
 
-                # --- THIS IS THE CHANGE: More detailed column error reporting ---
                 db_cols_set = set(db_cols)
                 upload_cols_set = set(upload_cols)
 
                 if upload_cols_set != db_cols_set:
                     st.error(f"Column Mismatch! The file columns do not match the '{target_table}' table.")
-                    
                     missing_cols = list(db_cols_set - upload_cols_set)
                     extra_cols = list(upload_cols_set - db_cols_set)
-                    
                     if missing_cols:
-                        st.warning("**Columns missing from your file:**")
-                        st.json(sorted(missing_cols))
-                        
+                        st.warning("**Columns missing from your file:**"); st.json(sorted(missing_cols))
                     if extra_cols:
-                        st.warning("**Unexpected columns found in your file:**")
-                        st.json(sorted(extra_cols))
-                    
+                        st.warning("**Unexpected columns found in your file:**"); st.json(sorted(extra_cols))
                     st.info("For reference:")
                     st.write("**Full list of expected columns:**", sorted(db_cols))
                     st.write("**Full list of your file's columns:**", sorted(upload_cols))
                     st.stop()
+                
+                # --- THIS IS THE CHANGE: Safety Check 2: Check for duplicate primary keys ---
+                # Assumes the unique key is 'identifier' for the 'data' table. Adjust if needed.
+                unique_key = None
+                if target_table == 'data':
+                    unique_key = 'identifier'
+                # Add other tables and their unique keys here if they also need this check
+                # elif target_table == 'alarm_standards':
+                #     unique_key = 'standard' 
+
+                if unique_key and unique_key in upload_df.columns:
+                    st.info(f"Checking for duplicate '{unique_key}' values...")
+                    upload_ids = upload_df[unique_key].dropna().tolist()
+
+                    if upload_ids:
+                        with engine.connect() as connection:
+                            query = text(f'SELECT "{unique_key}" FROM "{target_table}" WHERE "{unique_key}" IN :ids')
+                            existing_ids_df = pd.read_sql(query, connection, params={'ids': tuple(upload_ids)})
+                            existing_ids = set(existing_ids_df[unique_key])
+
+                        duplicate_ids = [id for id in upload_ids if id in existing_ids]
+
+                        if duplicate_ids:
+                            st.error(f"Upload Failed: Found {len(duplicate_ids)} rows in your file where the '{unique_key}' already exists in the database.")
+                            st.warning(f"The '{unique_key}' column must be unique for every record. Please remove or update the following rows in your file before trying again:")
+                            st.json(sorted(list(set(duplicate_ids))))
+                            st.stop()
                 # --- End of change ---
 
                 # --- Append data to the database ---
-                st.info(f"Columns match. Appending {len(upload_df)} rows to '{target_table}'...")
+                st.info(f"All checks passed. Appending {len(upload_df)} rows to '{target_table}'...")
                 with engine.connect() as connection:
                     upload_df.to_sql(target_table, con=connection, if_exists='append', index=False)
                 
@@ -285,11 +305,9 @@ elif page == "Database Viewer":
         def view_table_data(table_name):
             try:
                 with engine.connect() as connection:
-                    # Basic check to ensure a valid table name is used
                     if table_name not in table_options:
                         st.error("Invalid table selected.")
                         return pd.DataFrame()
-                    
                     query = text(f"SELECT * FROM {table_name}")
                     df = pd.read_sql(query, connection)
                     return df
